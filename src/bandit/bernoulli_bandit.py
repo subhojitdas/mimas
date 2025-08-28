@@ -25,3 +25,22 @@ class BernoulliBandit:
         return int(np.argmax(self.probs))
 
 
+class BaseAgent:
+    def __init__(self, K, seed=None):
+        self.K = K
+        self.rng = np.random.default_rng(seed=seed)
+        self.count = np.zeros(K, dtype=int)
+        self.values = np.zeros(K, dtype=float)
+        self.t = 0
+
+    def select_action(self) -> int:
+        raise NotImplementedError
+
+    def update(self, a, r):
+        self.t += 1
+        self.count[a] += 1
+        n = self.count[a]
+        # this time we got reward `r` , so this is the incremental update on the previous avg reward
+        self.values[a] += (r - self.values[a]) / n
+    
+
