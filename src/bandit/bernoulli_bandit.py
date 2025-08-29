@@ -42,5 +42,19 @@ class BaseAgent:
         n = self.count[a]
         # this time we got reward `r` , so this is the incremental update on the previous avg reward
         self.values[a] += (r - self.values[a]) / n
-    
+
+
+class EpsilonGreedy(BaseAgent):
+    def __init__(self, K, eps=0.1, seed=None):
+        super().__init__(K, seed)
+        assert 0.0 <= eps <= 1.0
+        self.eps = eps
+
+    def select_action(self):
+        if self.rng.random() < self.eps:
+            return int(self.rng.integers(self.K)) # explore
+        return int(np.argmax(self.values)) # exploit
+
+
+
 
