@@ -1,3 +1,5 @@
+from mpmath import sqrtm
+
 from src.bandit.multi_armed_bandit import BanditAlgorithm
 import numpy as np
 
@@ -56,5 +58,34 @@ class EpsilonGreedy(BaseAgent):
         return int(np.argmax(self.values)) # exploit
 
 
+class UCB1(BaseAgent):
+    """
+    # Cons of eps-greedy
+        Exploration is uninformed — it pulls every arm equally, even clearly suboptimal ones.
+        Fixed ε means you keep exploring forever (even though you know what's best).
+        Decayed ε can solve this, but tuning the decay is non-trivial
+    This is problem is solved by UCB1.
+    Instead of random exploration like ε-greedy, UCB1 assumes that uncertain arms are better than
+     what we currently know — so explore them until their uncertainty is reduced
+     UCB1 balance exploration and expoitation automatically
+    """
+    def __init__(self, K, c=2.0, seed=None):
+        super().__init__(K, seed)
+        """
+        c is the exploration coefficient; classic UCB1 uses sqrt((2 ln t)/n_a).
+        You can tune c (multiplying the sqrt term) if desired.
+        """
+        self.c = c
 
+    def select_action(self):
+        # ensure every arm is pulled at least once
+        for a in range(self.K):
+            if self.count[a] == 0:
+                return a
+
+        # UCB1 score
+        t = max(1, self.t)
+        bonus = np.sqrt(self.c * np.log(t) / self.count[a])
+        scores = self.values + bonus
+        return np.argmax(scores)
 
