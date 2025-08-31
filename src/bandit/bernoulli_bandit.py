@@ -7,7 +7,7 @@ class BernoulliBandit:
 
     def __init__(self, probs, seed=None):
         self.probs = np.asarray(probs, dtype=float)
-        assert self.probs.ndim == 1 and np.all(self.probs >= 0.0 and self.probs <= 1.0)
+        assert self.probs.ndim == 1 and np.all((self.probs >= 0.0) & (self.probs <= 1.0))
         self.K = self.probs.shape[0]
         self.rng = np.random.default_rng(seed=seed)
         self.t = 0
@@ -88,4 +88,102 @@ class UCB1(BaseAgent):
         bonus = np.sqrt(self.c * np.log(t) / self.count[a])
         scores = self.values + bonus
         return np.argmax(scores)
+
+
+class ThompsonSampling(BaseAgent):
+    def __init__(self, K, seed=None):
+        super().__init__(K, seed)
+        self.alpha = np.ones(K, dtype=float)
+        self.beta = np.ones(K, dtype=float)
+
+    def select_action(self):
+        theta = self.rng.beta(self.alpha, self.beta) # sampling from beta distribution
+        return int(np.argmax(theta))
+
+    def update(self, a, r):
+        super().update(a, r)
+        #update posterior
+        if r == 1.0:
+            self.alpha[a] += 1.0
+        else:
+            self.beta[a] += 1.0
+
+from dataclasses import dataclass
+
+@dataclass
+class RunResult:
+    actions: np.ndarray
+    rewards: np.ndarray
+    cum_rewards: np.ndarray
+    instantaneous_regret: np.ndarray
+    cumulative_regret: np.ndarray
+    final_estimates: np.ndarray
+    counts: np.ndarray
+
+
+def run_bandit(env: BernoulliBandit, agent: BaseAgent, T: int) -> RunResult:
+    actions = np.zeros(T, dtype=int)
+    rewards = np.zeros(T, dtype=float)
+    inst_regret = np.zeros(T, dtype=float)
+
+    env.reset()
+    for t in range(T):
+        a = agent.select_action()
+        r = env.step(a)
+        agent.update(a, r)
+
+        actions[t] = a
+        rewards[t] = r
+        inst_regret[t] = env.optimal_mean - env.probs[a]
+
+    return RunResult(
+        actions=actions,
+        rewards=rewards,
+        cum_rewards=np.cumsum(rewards),
+        instantaneous_regret=inst_regret,
+        cumulative_regret=np.cumsum(inst_regret),
+        final_estimates=agent.values.copy(),
+        counts=agent.count.copy(),
+    )
+
+
+if __name__ == "__main__":
+    # Define a 5-armed bandit with unknown (to the agent) success probs
+    true_probs = np.array([0.10, 0.25, 0.20, 0.90, 0.85])
+    env = BernoulliBandit(true_probs, seed=42)
+
+    T = 10_000
+
+    # ε-greedy
+    eg_agent = EpsilonGreedy(K=env.K, eps=0.1, seed=0)
+    eg_result = run_bandit(env, eg_agent, T)
+    print("ε-greedy:")
+    print("  total reward:", eg_result.cum_rewards[-1])
+    print("  cumulative regret:", eg_result.cumulative_regret[-1])
+    print("  pulls per arm:", eg_result.counts)
+    print("  value estimates:", np.round(eg_result.final_estimates, 3))
+
+    # UCB1
+    env = BernoulliBandit(true_probs, seed=42)  # fresh env for fair comparison
+    ucb_agent = UCB1(K=env.K, c=2.0, seed=0)
+    ucb_result = run_bandit(env, ucb_agent, T)
+    print("\nUCB1:")
+    print("  total reward:", ucb_result.cum_rewards[-1])
+    print("  cumulative regret:", ucb_result.cumulative_regret[-1])
+    print("  pulls per arm:", ucb_result.counts)
+    print("  value estimates:", np.round(ucb_result.final_estimates, 3))
+
+    # Thompson Sampling
+    env = BernoulliBandit(true_probs, seed=42)  # fresh env for fair comparison
+    ts_agent = ThompsonSampling(K=env.K, seed=0)
+    ts_result = run_bandit(env, ucb_agent, T)
+    print("\nThompson Sampling:")
+    print("  total reward:", ts_result.cum_rewards[-1])
+    print("  cumulative regret:", ts_result.cumulative_regret[-1])
+    print("  pulls per arm:", ts_result.counts)
+    print("  value estimates:", np.round(ts_result.final_estimates, 3))
+
+
+
+
 
