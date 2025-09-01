@@ -77,17 +77,17 @@ class UCB1(BaseAgent):
         """
         self.c = c
 
-    def select_action(self):
-        # ensure every arm is pulled at least once
+    def select_action(self) -> int:
+        # Warm-up: pull each arm once
         for a in range(self.K):
             if self.count[a] == 0:
                 return a
 
-        # UCB1 score
-        t = max(1, self.t)
-        bonus = np.sqrt(self.c * np.log(t) / self.count[a])
+        # After warm-up
+        t = max(self.t, 1)
+        bonus = np.sqrt((self.c * np.log(t)) / self.count)
         scores = self.values + bonus
-        return np.argmax(scores)
+        return int(np.argmax(scores))
 
 
 class ThompsonSampling(BaseAgent):
@@ -97,7 +97,12 @@ class ThompsonSampling(BaseAgent):
         self.beta = np.ones(K, dtype=float)
 
     def select_action(self):
-        theta = self.rng.beta(self.alpha, self.beta) # sampling from beta distribution
+        # Warm-up: pull each arm once
+        for a in range(self.K):
+            if self.count[a] == 0:
+                return a
+        # Thompson draw
+        theta = self.rng.beta(self.alpha, self.beta)
         return int(np.argmax(theta))
 
     def update(self, a, r):
@@ -149,10 +154,10 @@ def run_bandit(env: BernoulliBandit, agent: BaseAgent, T: int) -> RunResult:
 
 if __name__ == "__main__":
     # Define a 5-armed bandit with unknown (to the agent) success probs
-    true_probs = np.array([0.10, 0.25, 0.20, 0.90, 0.85])
+    true_probs = np.array([0.92, 0.25, 0.20, 0.90, 0.91])
     env = BernoulliBandit(true_probs, seed=42)
 
-    T = 10_000
+    T = 100_000
 
     # ε-greedy
     eg_agent = EpsilonGreedy(K=env.K, eps=0.1, seed=0)
@@ -176,7 +181,7 @@ if __name__ == "__main__":
     # Thompson Sampling
     env = BernoulliBandit(true_probs, seed=42)  # fresh env for fair comparison
     ts_agent = ThompsonSampling(K=env.K, seed=0)
-    ts_result = run_bandit(env, ucb_agent, T)
+    ts_result = run_bandit(env, ts_agent, T)
     print("\nThompson Sampling:")
     print("  total reward:", ts_result.cum_rewards[-1])
     print("  cumulative regret:", ts_result.cumulative_regret[-1])
