@@ -29,4 +29,31 @@ class GaussianBandit:
         return int(np.argmax(self.means))
 
 
+class BaseAgent:
+    def __init__(self, K, seed=None):
+        self.K = K
+        self.rng = np.random.default_rng(seed)
+        self.count = np.zeros(K, dtype=int)
+        self.values = np.zeros(K, dtype=float)  # running mean
+        self.t = 0
 
+    def select_action(self) -> int:
+        raise NotImplementedError
+
+    def update(self, a, r: float):
+        self.t += 1
+        self.count[a] += 1
+        n = self.count[a]
+        self.values[a] += (r - self.values[a]) / n  # incremental mean
+
+
+class EpsilonGreedy(BaseAgent):
+    def __init__(self, K, eps=0.1, seed=None):
+        super().__init__(K, seed)
+        assert 0.0 <= eps <= 1.0
+        self.eps = eps
+
+    def select_action(self) -> int:
+        if self.rng.random() < self.eps:
+            return int(self.rng.integers(self.K))  # explore
+        return int(np.argmax(self.values))         # exploit
