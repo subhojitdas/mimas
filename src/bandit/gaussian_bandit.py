@@ -57,3 +57,35 @@ class EpsilonGreedy(BaseAgent):
         if self.rng.random() < self.eps:
             return int(self.rng.integers(self.K))  # explore
         return int(np.argmax(self.values))         # exploit
+
+
+class UCBV(BaseAgent):
+    """
+    UCB-V for unbounded/gaussian-like rewards.
+    Uses empirical variance per arm.
+    """
+    def __init__(self, K, seed=None):
+        super().__init__(K, seed)
+        self.sumsq = np.zeros(K, dtype=float)  # sum of squares per arm
+
+    def select_action(self) -> int:
+        # Pull each arm once to initialize
+        for a in range(self.K):
+            if self.count[a] == 0:
+                return a
+
+        t = np.max(1, self.t)
+        n = self.count.astype(float)
+
+        # empirical variance: var = E[x^2] - (E[x])^2
+        ex2 = self.sumsq / n
+        mu  = self.values
+        var = np.maximum(1e-12, ex2 - mu**2)  # keep positive
+
+        bonus = np.sqrt((2.0 * var * np.log(t)) / n) + (3.0 * np.log(t)) / n
+        scores = mu + bonus
+        return int(np.argmax(scores))
+
+    def update(self, a, r: float):
+        super().update(a, r)
+        self.sumsq[a] += r * r
