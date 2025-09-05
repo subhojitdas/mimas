@@ -89,3 +89,28 @@ class UCBV(BaseAgent):
     def update(self, a, r: float):
         super().update(a, r)
         self.sumsq[a] += r * r
+
+
+#Gaussian Thompson Sampling (Normal prior, known variance)
+class GuassianThompson(BaseAgent):
+    def __init__(self, K, obs_var=1.0, mu0=0.0, tau0_sq=1.0, seed=None):
+        super().__init__(K, seed)
+        self.obs_var = float(obs_var)
+        self.mu0 = float(mu0)
+        self.tau0_sq = float(tau0_sq)
+        self.sums = np.zeros(K, dtype=float)
+
+    def select_action(self) -> int:
+        for a in range(self.K):
+            if self.count[a] == 0:
+                return a
+        n = self.count.astype(float)
+        tau_n_sq = 1.0 / (1.0 / self.tau0_sq + n / self.obs_var)
+        mu_n = tau_n_sq * (self.mu0 / self.tau0_sq + self.sums / self.obs_var)
+
+        samples = self.rng.normal(mu_n, np.sqrt(tau_n_sq))
+        return int(np.argmax(samples))
+
+    def update(self, a, r: float):
+        super().update(a, r)
+        self.sums[a] += r
