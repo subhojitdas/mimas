@@ -22,9 +22,11 @@ class GaussianBandit:
         self.t += 1
         return float(self.rng.normal(self.means[a], self.stds[a]))
 
+    @property
     def optimal_mean(self):
         return float(np.max(self.means))
 
+    @property
     def optimal_arm(self):
         return int(np.argmax(self.means))
 
@@ -74,7 +76,7 @@ class UCBV(BaseAgent):
             if self.count[a] == 0:
                 return a
 
-        t = np.max(1, self.t)
+        t = max(1, self.t)
         n = self.count.astype(float)
 
         # empirical variance: var = E[x^2] - (E[x])^2
@@ -92,7 +94,8 @@ class UCBV(BaseAgent):
 
 
 #Gaussian Thompson Sampling (Normal prior, known variance)
-class GuassianThompson(BaseAgent):
+class GaussianThompson(BaseAgent):
+
     def __init__(self, K, obs_var=1.0, mu0=0.0, tau0_sq=1.0, seed=None):
         super().__init__(K, seed)
         self.obs_var = float(obs_var)
@@ -114,3 +117,64 @@ class GuassianThompson(BaseAgent):
     def update(self, a, r: float):
         super().update(a, r)
         self.sums[a] += r
+
+
+@dataclass
+class RunResult:
+    actions: np.ndarray
+    rewards: np.ndarray
+    cum_rewards: np.ndarray
+    instantaneous_regret: np.ndarray
+    cumulative_regret: np.ndarray
+    final_estimates: np.ndarray
+    counts: np.ndarray
+
+def run_bandit(env, agent, T: int) -> RunResult:
+    actions = np.zeros(T, dtype=int)
+    rewards = np.zeros(T, dtype=float)
+    inst_regret = np.zeros(T, dtype=float)
+
+    env.reset()
+    for t in range(T):
+        a = agent.select_action()
+        r = env.step(a)
+        agent.update(a, r)
+
+        actions[t] = a
+        rewards[t] = r
+        # pseudo-regret uses true means (env is known only to evaluator)
+        inst_regret[t] = env.optimal_mean - env.means[a]
+
+    return RunResult(
+        actions=actions,
+        rewards=rewards,
+        cum_rewards=np.cumsum(rewards),
+        instantaneous_regret=inst_regret,
+        cumulative_regret=np.cumsum(inst_regret),
+        final_estimates=agent.values.copy(),
+        counts=agent.count.copy(),
+    )
+
+
+if __name__ == "__main__":
+    means = np.array([0.0, 0.5, 1.0, 1.1, 0.8])
+    stds  = np.array([1.0, 1.0, 1.0, 1.0, 1.0])  # same noise for clarity
+    env = GaussianBandit(means, stds, seed=42)
+    T = 10_000
+
+    # ε-greedy
+    eg = EpsilonGreedy(K=env.K, eps=0.1, seed=0)
+    eg_res = run_bandit(env, eg, T)
+    print("ε-greedy:", eg_res.cumulative_regret[-1], eg_res.counts)
+
+    # UCB-V
+    env = GaussianBandit(means, stds, seed=42)
+    ucbv = UCBV(K=env.K, seed=0)
+    ucbv_res = run_bandit(env, ucbv, T)
+    print("UCB-V:", ucbv_res.cumulative_regret[-1], ucbv_res.counts)
+
+    # Gaussian Thompson (assume known variance = 1.0)
+    env = GaussianBandit(means, stds, seed=42)
+    ts = GaussianThompson(K=env.K, obs_var=1.0, mu0=0.0, tau0_sq=10.0, seed=0)
+    ts_res = run_bandit(env, ts, T)
+    print("Gaussian TS:", ts_res.cumulative_regret[-1], ts_res.counts)
