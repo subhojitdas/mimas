@@ -109,7 +109,7 @@ def value_iteration(env: GridworldStochastic, theta=1e-9, max_iters=1_000_000, i
                 for ai in range(env.nA):
                     q = 0.0
                     for p, sj, r in env.transitions[si][ai]:
-                        q += p * (r + env.gamma * V[sj])
+                        q += p * (r + env.gamma * V[sj]) # important line
                     if q > best: best = q
                 V_new[si] = best
             delta = np.max(np.abs(V_new - V))
