@@ -14,7 +14,7 @@ def run_epsilon_greedy_bandit(
 
     for run in range(n_runs):
         # True action values q* ~ N(0, 1) for this bandit instance
-        q_true = np.random.normal(loc=0.0, scale=1.0, size=k)
+        q_true = np.random.normal(loc=0.0, scale=20.0, size=k)
 
         # Estimated action values
         q_est = np.full(k, init_q, dtype=np.float64)
@@ -64,3 +64,4 @@ if __name__ == "__main__":
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
     plt.show()
+
