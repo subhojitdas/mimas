@@ -1,6 +1,7 @@
 import numpy as np
 from torch import nn, optim
 import torch
+import gymnasium as gym
 
 
 def preprocess(obs):
@@ -81,3 +82,73 @@ class REINFORCEPongAgent:
         self.rewards.clear()
 
         return loss.item()
+
+
+# --------- Training loop ----------
+def train_pong_pg(
+    env_name="ale_py:ALE/Pong-v5",
+    num_episodes=1000,
+    render=False,
+    save_every=100,
+    model_path="pong_pg.pt",
+):
+    # Some gym versions require this wrapper to get proper atari preprocessing; for
+    # now we do our own frame processing and just disable frame skip.
+    env = gym.make(env_name)
+    agent = REINFORCEPongAgent()
+
+    running_reward = None
+
+    for episode in range(1, num_episodes + 1):
+        obs, info = env.reset() if isinstance(env.reset(), tuple) else (env.reset(), {})
+        prev_x = None
+        episode_reward = 0.0
+
+        done = False
+        while not done:
+            if render:
+                env.render()
+
+            cur_x = preprocess(obs)
+            # Use frame difference to emphasize motion
+            x = cur_x - prev_x if prev_x is not None else np.zeros_like(cur_x)
+            prev_x = cur_x
+
+            action = agent.select_action(x)
+            step_out = env.step(action)
+            # Gym vs Gymnasium step signature
+            if len(step_out) == 5:
+                obs, reward, terminated, truncated, info = step_out
+                done = terminated or truncated
+            else:
+                obs, reward, done, info = step_out
+
+            agent.rewards.append(reward)
+            episode_reward += reward
+
+        loss = agent.finish_episode()
+        running_reward = (
+            episode_reward
+            if running_reward is None
+            else running_reward * 0.99 + episode_reward * 0.01
+        )
+
+        print(
+            f"Episode {episode:4d} | "
+            f"Reward: {episode_reward:6.1f} | "
+            f"Running reward: {running_reward:6.1f} | "
+            f"Loss: {loss:8.4f}"
+        )
+
+        if episode % save_every == 0:
+            torch.save(agent.policy.state_dict(), model_path)
+            print(f"Saved model to {model_path}")
+
+    env.close()
+    torch.save(agent.policy.state_dict(), model_path)
+    print("Training finished, final model saved.")
+
+
+if __name__ == "__main__":
+    # You can tweak num_episodes; Pong often needs a few thousand episodes to get good.
+    train_pong_pg(num_episodes=1000, render=False)
