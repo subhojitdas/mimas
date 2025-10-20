@@ -120,3 +120,42 @@ def sarsa(
             print(f"Episode {episode + 1}/{num_episodes}, total_reward={total_reward}, epsilon={epsilon:.3f}")
 
     return Q, env
+
+def print_policy(Q, env):
+    """
+    Print the greedy policy derived from Q as arrows on the grid.
+    """
+    arrows = {
+        0: "↑",
+        1: "→",
+        2: "↓",
+        3: "←",
+    }
+
+    size = env.size
+    n_states, n_actions = Q.shape
+
+    print("\nGreedy policy (ignoring epsilon, using argmax_a Q(s, a)):\n")
+    for x in range(size):
+        row = []
+        for y in range(size):
+            state_idx = env._state_to_index((x, y))
+            if (x, y) == env.goal_state:
+                row.append("G")  # Goal
+            else:
+                best_action = int(np.argmax(Q[state_idx]))
+                row.append(arrows[best_action])
+        print("  ".join(row))
+
+
+if __name__ == "__main__":
+    Q, env = sarsa(
+        num_episodes=1000,
+        alpha=0.1,
+        gamma=0.99,
+        epsilon_start=1.0,
+        epsilon_end=0.05,
+        epsilon_decay=0.99,
+    )
+
+    print_policy(Q, env)
