@@ -1,10 +1,11 @@
-# reinforce_cartpole.py
 import gymnasium as gym
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.distributions import Categorical
+
+# REINFORCE = Monte Carlo Policy Gradient
 
 # ----------------------------
 # Policy network
